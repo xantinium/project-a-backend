@@ -1,6 +1,7 @@
 /api
 /platform-binary
 /static
+/files/images/*
 
 .env
 
