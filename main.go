@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/xantinium/project-a-backend/src/core"
 	core_database "github.com/xantinium/project-a-backend/src/core/database"
 	"github.com/xantinium/project-a-backend/src/handlers"
 )
@@ -32,7 +33,7 @@ func main() {
 		panic(err)
 	}
 
-	// core.RegisterStaticResolver(router)
+	core.RegisterStaticResolver(router)
 
 	router.Use(gin.RecoveryWithWriter(nil, func(ctx *gin.Context, err any) {
 		fmt.Println(err)

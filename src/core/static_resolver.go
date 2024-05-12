@@ -28,7 +28,7 @@ func init() {
 }
 
 func RegisterStaticResolver(router *gin.Engine) {
-	router.Static("/assets", staticPath)
+	router.Static("/assets", path.Join(staticPath, "assets"))
 
 	router.NoRoute(func(ctx *gin.Context) {
 		ctx.Data(HttpStatusOK, HTML_MIME_TYPE, rootHtml)
