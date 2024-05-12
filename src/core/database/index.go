@@ -22,6 +22,7 @@ func NewDatabaseClient() (*DatabaseClient, error) {
 	tables := []string{
 		"users",
 		"images",
+		"tasks",
 	}
 
 	for _, tableName := range tables {

@@ -16,6 +16,6 @@ func (res *usersResource) RegisterHandlers(r core.Router) {
 	r.PATCH("/users/:id", users_handler_patch.NewUsersPatchHandler(res.dbClient))
 }
 
-func NewAuthResource(dbClient core.DatabaseClient) *usersResource {
+func NewUsersResource(dbClient core.DatabaseClient) *usersResource {
 	return &usersResource{dbClient}
 }
