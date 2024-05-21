@@ -4,10 +4,11 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	api_tasks_post "github.com/xantinium/project-a-backend/api/tasks/post"
 	"github.com/xantinium/project-a-backend/src/core"
+	core_database "github.com/xantinium/project-a-backend/src/core/database"
+	core_resources "github.com/xantinium/project-a-backend/src/core/resources"
 )
 
 type tasksPostHandlerSchema struct {
-	Id          int
 	Name        string
 	Description string
 }
@@ -15,9 +16,8 @@ type tasksPostHandlerSchema struct {
 func (s *tasksPostHandlerSchema) Validate() error {
 	return validation.ValidateStruct(
 		s,
-		validation.Field(&s.Id, validation.Required, validation.Min(0)),
-		validation.Field(&s.Name, validation.Required, validation.Max(50)),
-		validation.Field(&s.Description, validation.Max(1024)),
+		validation.Field(&s.Name, validation.Required, validation.Length(0, 50)),
+		validation.Field(&s.Description, validation.Length(0, 1024)),
 	)
 }
 
@@ -30,10 +30,7 @@ func (h *tasksPostHandler) Prepare(rawData []byte, ctx core.HttpCtx) *api_tasks_
 }
 
 func (h *tasksPostHandler) Validate(data *api_tasks_post.TasksPostReq, ctx core.HttpCtx) error {
-	taskId := core.ExtractIntParam(ctx, "id")
-
 	r := tasksPostHandlerSchema{
-		Id:          taskId,
 		Name:        string(data.Name()),
 		Description: string(data.Description()),
 	}
@@ -42,7 +39,20 @@ func (h *tasksPostHandler) Validate(data *api_tasks_post.TasksPostReq, ctx core.
 }
 
 func (h *tasksPostHandler) Handle(data *api_tasks_post.TasksPostReq, ctx core.HttpCtx) (core.HttpStatus, []byte, error) {
-	// taskId := core.ExtractIntParam(ctx, "id")
+	userId := core.ExtractUserId(ctx)
+
+	elements := core_resources.DeserializeElements(data.Elements, data.ElementsLength())
+
+	err := h.dbClient.CreateTask(&core_database.CreateTaskOptions{
+		Name:        string(data.Name()),
+		Description: core_database.CreateField(string(data.Description())),
+		Elements:    core_resources.SerializeElements(elements),
+		OwnerId:     userId,
+	})
+	if err != nil {
+		return core.HttpStatusInternalServerError, nil, err
+	}
+
 	return core.HttpStatusOK, nil, nil
 }
 

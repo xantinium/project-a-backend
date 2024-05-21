@@ -1,6 +1,7 @@
 package core_database
 
 import (
+	"encoding/hex"
 	"fmt"
 	"reflect"
 )
@@ -41,9 +42,15 @@ func CreateColumnsQuery(fieldsMap any) string {
 				default:
 					rv := reflect.Indirect(valueIterator.Field(i).Elem())
 
-					if rv.Kind() == reflect.String {
+					switch rv.Kind() {
+					case reflect.String:
 						v = fmt.Sprintf("'%s'", rv)
-					} else {
+					case reflect.Slice:
+						buf := []byte{}
+						buf = append(buf, `\x`...)
+						buf = append(buf, hex.EncodeToString(rv.Bytes())...)
+						v = fmt.Sprintf("'%s'", buf)
+					default:
 						v = fmt.Sprintf("%v", rv)
 					}
 				}

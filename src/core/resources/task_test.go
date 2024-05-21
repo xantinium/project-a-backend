@@ -1,4 +1,4 @@
-package tasks_handler
+package core_resources
 
 import (
 	"reflect"
@@ -128,7 +128,7 @@ func Test_taskProcessing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := deserializeTask(serializeTask(tt.task)); !reflect.DeepEqual(got, tt.task) {
+			if got := DeserializeTask(SerializeTask(tt.task)); !reflect.DeepEqual(got, tt.task) {
 				t.Errorf("result task = %v, want %v", got, tt.task)
 			}
 		})

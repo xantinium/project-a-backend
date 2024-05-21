@@ -1,4 +1,4 @@
-package tasks_handler
+package core_resources
 
 import (
 	flatbuffers "github.com/google/flatbuffers/go"
@@ -54,6 +54,8 @@ type taskType struct {
 	Elements    []taskElementType
 }
 
+type readElementFunc func(*api_tasks.Element, int) bool
+
 func getElementBytes(element api_tasks.Element) []byte {
 	data := make([]byte, 0)
 
@@ -62,6 +64,35 @@ func getElementBytes(element api_tasks.Element) []byte {
 	}
 
 	return data
+}
+
+func DeserializeElements(readElement readElementFunc, elementsNum int) []taskElementType {
+	elements := make([]taskElementType, 0, elementsNum)
+
+	for i := 0; i < elementsNum; i++ {
+		var element api_tasks.Element
+
+		readElement(&element, i)
+
+		switch element.Type() {
+		case api_tasks.ElementsTypesTEXT:
+			elements = append(elements, deserializeTextElement(element))
+		case api_tasks.ElementsTypesCHOICE:
+			elements = append(elements, deserializeChoiceElement(element))
+		case api_tasks.ElementsTypesMULTI_CHOICE:
+			elements = append(elements, deserializeMultiChoiceElement(element))
+		case api_tasks.ElementsTypesRELATIONS:
+			elements = append(elements, deserializeRelationsElement(element))
+		}
+	}
+
+	return elements
+}
+
+func DeserializeElementsFromBytes(data []byte) []taskElementType {
+	taskElements := api_tasks.GetRootAsTaskElements(data, 0)
+
+	return DeserializeElements(taskElements.Elements, taskElements.ElementsLength())
 }
 
 func deserializeTextElement(element api_tasks.Element) textElementType {
@@ -145,27 +176,10 @@ func deserializeRelationsElement(element api_tasks.Element) relationsElementType
 	}
 }
 
-func deserializeTask(data []byte) taskType {
+func DeserializeTask(data []byte) taskType {
 	task := api_tasks.GetRootAsTask(data, 0)
 
-	elements := make([]taskElementType, 0, task.ElementsLength())
-
-	for i := 0; i < task.ElementsLength(); i++ {
-		var element api_tasks.Element
-
-		task.Elements(&element, i)
-
-		switch element.Type() {
-		case api_tasks.ElementsTypesTEXT:
-			elements = append(elements, deserializeTextElement(element))
-		case api_tasks.ElementsTypesCHOICE:
-			elements = append(elements, deserializeChoiceElement(element))
-		case api_tasks.ElementsTypesMULTI_CHOICE:
-			elements = append(elements, deserializeMultiChoiceElement(element))
-		case api_tasks.ElementsTypesRELATIONS:
-			elements = append(elements, deserializeRelationsElement(element))
-		}
-	}
+	elements := DeserializeElements(task.Elements, task.ElementsLength())
 
 	return taskType{
 		Id:          int(task.Id()),
@@ -276,7 +290,41 @@ func serializeRelationsElement(element relationsElementType) []byte {
 	return b.FinishedBytes()
 }
 
-func serializeTask(task taskType) []byte {
+func SerializeElements(elements []taskElementType) []byte {
+	b := &flatbuffers.Builder{}
+
+	offsets := make([]flatbuffers.UOffsetT, 0, len(elements))
+
+	for _, el := range elements {
+		var data []byte
+
+		switch element := el.(type) {
+		case textElementType:
+			data = serializeTextElement(element)
+		case choiceElementType:
+			data = serializeChoiceElement(element)
+		case multiChoiceElementType:
+			data = serializeMultiChoiceElement(element)
+		case relationsElementType:
+			data = serializeRelationsElement(element)
+		}
+
+		offset := b.CreateByteVector(data)
+
+		offsets = append(offsets, offset)
+	}
+
+	offset := b.CreateVectorOfTables(offsets)
+
+	api_tasks.TaskElementsStart(b)
+	api_tasks.TaskElementsAddElements(b, offset)
+	offset = api_tasks.TaskElementsEnd(b)
+	b.Finish(offset)
+
+	return b.FinishedBytes()
+}
+
+func SerializeTask(task taskType) []byte {
 	b := &flatbuffers.Builder{}
 
 	name := b.CreateString(task.Name)

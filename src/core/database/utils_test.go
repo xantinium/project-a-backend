@@ -52,6 +52,16 @@ func TestCreateColumnsQuery(t *testing.T) {
 			},
 			want: fmt.Sprintf("first_name = 'name', avatar_id = '%s'", avatarId),
 		},
+		{
+			name: "строковый параметр + массив байтов",
+			args: args{
+				fieldsMap: UpdateTaskOptionsFields{
+					Name:     CreateField("name"),
+					Elements: CreateField([]byte{4, 0, 0, 0, 4, 0}),
+				},
+			},
+			want: "name = 'name', elements = '\\x040000000400'",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
