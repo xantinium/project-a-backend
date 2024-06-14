@@ -4,6 +4,7 @@ import (
 	"github.com/xantinium/project-a-backend/src/core"
 	core_files "github.com/xantinium/project-a-backend/src/core/files"
 	auth_handler "github.com/xantinium/project-a-backend/src/handlers/auth"
+	preferences_handler "github.com/xantinium/project-a-backend/src/handlers/preferences"
 	tasks_handler "github.com/xantinium/project-a-backend/src/handlers/tasks"
 	users_handler "github.com/xantinium/project-a-backend/src/handlers/users"
 )
@@ -17,6 +18,7 @@ func RegisterHandlers(router core.Router, dbClient core.DatabaseClient) {
 		auth_handler.NewAuthResource(dbClient),
 		users_handler.NewUsersResource(dbClient),
 		tasks_handler.NewTasksResource(dbClient),
+		preferences_handler.NewPreferencesResource(dbClient),
 	}
 
 	for _, r := range resources {

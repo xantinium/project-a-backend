@@ -13,6 +13,7 @@ type tasksResource struct {
 
 func (res *tasksResource) RegisterHandlers(r core.Router) {
 	r.GET("/tasks", tasks_handler_get.NewTasksGetHandler(res.dbClient))
+	r.GET("/tasks/:id", tasks_handler_get.NewTasksGetHandler(res.dbClient))
 	r.POST("/tasks", tasks_handler_post.NewTasksPostHandler(res.dbClient))
 	r.PATCH("/tasks/:id", tasks_handler_patch.NewTasksPatchHandler(res.dbClient))
 }

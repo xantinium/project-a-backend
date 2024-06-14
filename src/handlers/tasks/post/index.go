@@ -46,6 +46,7 @@ func (h *tasksPostHandler) Handle(data *api_tasks_post.TasksPostReq, ctx core.Ht
 	err := h.dbClient.CreateTask(&core_database.CreateTaskOptions{
 		Name:        string(data.Name()),
 		Description: core_database.CreateField(string(data.Description())),
+		IsPrivate:   data.IsPrivate(),
 		Elements:    core_resources.SerializeElements(elements),
 		OwnerId:     userId,
 	})

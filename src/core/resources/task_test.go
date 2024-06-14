@@ -3,56 +3,68 @@ package core_resources
 import (
 	"reflect"
 	"testing"
+
+	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/xantinium/project-a-backend/api/tasks"
 )
 
 func Test_taskProcessing(t *testing.T) {
 	tests := []struct {
 		name string
-		task taskType
+		task TaskType
 	}{
 		{
 			name: "без элементов",
-			task: taskType{
+			task: TaskType{
 				Id:          4,
 				Name:        "название",
 				Description: "описание",
-				Elements:    []interface{}{},
+				IsPrivate:   true,
+				Elements:    []taskElementType{},
 			},
 		},
 		{
 			name: "один элемент: текст",
-			task: taskType{
+			task: TaskType{
 				Id:          4,
 				Name:        "название",
 				Description: "описание",
-				Elements: []interface{}{
-					textElementType{
+				IsPrivate:   true,
+				Elements: []taskElementType{
+					{
 						Hash: "1",
-						Body: "текст",
+						Type: tasks.ElementsTypesTEXT,
+						textElementData: textElementType{
+							Body: "текст",
+						},
 					},
 				},
 			},
 		},
 		{
 			name: "один элемент: выбор варианта",
-			task: taskType{
+			task: TaskType{
 				Id:          4,
 				Name:        "название",
 				Description: "описание",
-				Elements: []interface{}{
-					choiceElementType{
-						Hash:        "1",
-						Description: "описание",
-						Items: []choiceElementItemType{
-							{
-								Hash:     "1",
-								Text:     "вариант 1",
-								Selected: false,
-							},
-							{
-								Hash:     "2",
-								Text:     "вариант 2",
-								Selected: true,
+				IsPrivate:   true,
+				Elements: []taskElementType{
+					{
+						Hash: "1",
+						Type: tasks.ElementsTypesCHOICE,
+						choiceElementData: choiceElementType{
+							Description: "описание",
+							Items: []choiceElementItemType{
+								{
+									Hash:     "1",
+									Text:     "вариант 1",
+									Selected: false,
+								},
+								{
+									Hash:     "2",
+									Text:     "вариант 2",
+									Selected: true,
+								},
 							},
 						},
 					},
@@ -61,29 +73,33 @@ func Test_taskProcessing(t *testing.T) {
 		},
 		{
 			name: "один элемент: множественный выбор",
-			task: taskType{
+			task: TaskType{
 				Id:          4,
 				Name:        "название",
 				Description: "описание",
-				Elements: []interface{}{
-					multiChoiceElementType{
-						Hash:        "1",
-						Description: "описание",
-						Items: []choiceElementItemType{
-							{
-								Hash:     "1",
-								Text:     "вариант 1",
-								Selected: true,
-							},
-							{
-								Hash:     "2",
-								Text:     "вариант 2",
-								Selected: false,
-							},
-							{
-								Hash:     "3",
-								Text:     "вариант 3",
-								Selected: true,
+				IsPrivate:   true,
+				Elements: []taskElementType{
+					{
+						Hash: "1",
+						Type: tasks.ElementsTypesMULTI_CHOICE,
+						multiChoiceElementData: multiChoiceElementType{
+							Description: "описание",
+							Items: []choiceElementItemType{
+								{
+									Hash:     "1",
+									Text:     "вариант 1",
+									Selected: true,
+								},
+								{
+									Hash:     "2",
+									Text:     "вариант 2",
+									Selected: false,
+								},
+								{
+									Hash:     "3",
+									Text:     "вариант 3",
+									Selected: true,
+								},
 							},
 						},
 					},
@@ -92,33 +108,112 @@ func Test_taskProcessing(t *testing.T) {
 		},
 		{
 			name: "один элемент: соответствие элементов",
-			task: taskType{
+			task: TaskType{
 				Id:          4,
 				Name:        "название",
 				Description: "описание",
-				Elements: []interface{}{
-					relationsElementType{
+				IsPrivate:   true,
+				Elements: []taskElementType{
+					{
 						Hash: "1",
-						LeftItems: []RelationItemType{
-							{
-								Hash: "1",
-								Text: "текст 1",
+						Type: tasks.ElementsTypesRELATIONS,
+						relationsElementData: relationsElementType{
+							Description: "описание",
+							LeftItems: []RelationItemType{
+								{
+									Hash: "1",
+									Text: "текст 1",
+								},
+								{
+									Hash: "2",
+									Text: "текст 2",
+								},
 							},
-							{
-								Hash: "2",
-								Text: "текст 2",
+							RightItems: []RelationItemType{
+								{
+									Hash: "1",
+									Text: "текст 1",
+								},
+							},
+							Relations: []RelationType{
+								{
+									Left:  "1",
+									Right: "1",
+								},
 							},
 						},
-						RightItems: []RelationItemType{
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		b := &flatbuffers.Builder{}
+		offset := SerializeTask(b, tt.task)
+		b.Finish(offset)
+
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DeserializeTask(b.FinishedBytes()); !reflect.DeepEqual(got, tt.task) {
+				t.Errorf("result task = %v, want %v", got, tt.task)
+			}
+		})
+	}
+}
+
+func Test_elementsProcessing(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []taskElementType
+	}{
+		{
+			name: "один элемент: выбор варианта",
+			elements: []taskElementType{
+				{
+					Hash: "1",
+					Type: tasks.ElementsTypesCHOICE,
+					choiceElementData: choiceElementType{
+						Description: "описание",
+						Items: []choiceElementItemType{
 							{
-								Hash: "1",
-								Text: "текст 1",
+								Hash:     "1",
+								Text:     "вариант 1",
+								Selected: false,
+							},
+							{
+								Hash:     "2",
+								Text:     "вариант 2",
+								Selected: true,
 							},
 						},
-						Relations: []RelationType{
+					},
+				},
+			},
+		},
+		{
+			name: "несколько элементов: текст + выбор варианта",
+			elements: []taskElementType{
+				{
+					Hash: "1",
+					Type: tasks.ElementsTypesTEXT,
+					textElementData: textElementType{
+						Body: "Текст",
+					},
+				},
+				{
+					Hash: "2",
+					Type: tasks.ElementsTypesCHOICE,
+					choiceElementData: choiceElementType{
+						Description: "описание",
+						Items: []choiceElementItemType{
 							{
-								Left:  "1",
-								Right: "1",
+								Hash:     "1",
+								Text:     "вариант 1",
+								Selected: false,
+							},
+							{
+								Hash:     "2",
+								Text:     "вариант 2",
+								Selected: true,
 							},
 						},
 					},
@@ -128,8 +223,8 @@ func Test_taskProcessing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := DeserializeTask(SerializeTask(tt.task)); !reflect.DeepEqual(got, tt.task) {
-				t.Errorf("result task = %v, want %v", got, tt.task)
+			if got := DeserializeElementsFromBytes(SerializeElements(tt.elements)); !reflect.DeepEqual(got, tt.elements) {
+				t.Errorf("result task = %v, want %v", got, tt.elements)
 			}
 		})
 	}

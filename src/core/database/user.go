@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	api_auth "github.com/xantinium/project-a-backend/api/auth"
+	api_preferences "github.com/xantinium/project-a-backend/api/preferences"
 )
 
 type UserStruct struct {
@@ -17,6 +18,8 @@ type UserStruct struct {
 	OAuthSerive     api_auth.OAuthServices `db:"oauth_service"`
 	YandexProfileId *string                `db:"yandex_profile_id"`
 	GoogleProfileId *string                `db:"google_profile_id"`
+	Theme           api_preferences.Themes `db:"theme"`
+	Lang            api_preferences.Langs  `db:"lang"`
 	CreatedAt       time.Time              `db:"created_at"`
 	UpdatedAt       time.Time              `db:"updated_at"`
 }
@@ -94,13 +97,15 @@ func (dbClient *DatabaseClient) CreateUser(options *CreateUserOptions) (int, err
 
 	err := dbClient.p.QueryRow(
 		context.Background(),
-		"INSERT INTO users VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+		"INSERT INTO users VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
 		options.FirstName,
 		options.LastName,
 		options.AvatarId,
 		options.OAuthSerive,
 		options.YandexProfileId,
 		options.GoogleProfileId,
+		api_preferences.ThemesSYSTEM,
+		api_preferences.LangsRU,
 		currentTime,
 		currentTime,
 	).Scan(&createdUserId)
@@ -109,9 +114,11 @@ func (dbClient *DatabaseClient) CreateUser(options *CreateUserOptions) (int, err
 }
 
 type UpdateUserOptionsFields struct {
-	FirstName *string  `db:"first_name"`
-	LastName  *string  `db:"last_name"`
-	AvatarId  **string `db:"avatar_id"`
+	FirstName *string                 `db:"first_name"`
+	LastName  *string                 `db:"last_name"`
+	AvatarId  **string                `db:"avatar_id"`
+	Theme     *api_preferences.Themes `db:"theme"`
+	Lang      *api_preferences.Langs  `db:"lang"`
 }
 
 type UpdateUserOptions struct {

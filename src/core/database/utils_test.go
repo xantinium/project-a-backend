@@ -53,6 +53,16 @@ func TestCreateColumnsQuery(t *testing.T) {
 			want: fmt.Sprintf("first_name = 'name', avatar_id = '%s'", avatarId),
 		},
 		{
+			name: "строковый параметр + bool",
+			args: args{
+				fieldsMap: UpdateTaskOptionsFields{
+					Name:      CreateField("name"),
+					IsPrivate: CreateField(true),
+				},
+			},
+			want: "name = 'name', is_private = TRUE",
+		},
+		{
 			name: "строковый параметр + массив байтов",
 			args: args{
 				fieldsMap: UpdateTaskOptionsFields{

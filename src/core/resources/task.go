@@ -6,7 +6,6 @@ import (
 )
 
 type textElementType struct {
-	Hash string
 	Body string
 }
 
@@ -17,13 +16,11 @@ type choiceElementItemType struct {
 }
 
 type choiceElementType struct {
-	Hash        string
 	Description string
 	Items       []choiceElementItemType
 }
 
 type multiChoiceElementType = struct {
-	Hash        string
 	Description string
 	Items       []choiceElementItemType
 }
@@ -39,73 +36,45 @@ type RelationType struct {
 }
 
 type relationsElementType struct {
-	Hash       string
-	LeftItems  []RelationItemType
-	RightItems []RelationItemType
-	Relations  []RelationType
+	Description string
+	LeftItems   []RelationItemType
+	RightItems  []RelationItemType
+	Relations   []RelationType
 }
 
-type taskElementType = interface{}
+type taskElementType struct {
+	Hash                   string
+	Type                   api_tasks.ElementsTypes
+	textElementData        textElementType
+	choiceElementData      choiceElementType
+	multiChoiceElementData multiChoiceElementType
+	relationsElementData   relationsElementType
+}
 
-type taskType struct {
+type TaskType struct {
 	Id          int
 	Name        string
 	Description string
+	IsPrivate   bool
 	Elements    []taskElementType
 }
 
 type readElementFunc func(*api_tasks.Element, int) bool
 
-func getElementBytes(element api_tasks.Element) []byte {
-	data := make([]byte, 0)
+func deserializeTextElement(element api_tasks.Element) taskElementType {
+	textElement := element.TextElementData(nil)
 
-	for i := 0; i < element.DataLength(); i++ {
-		data = append(data, byte(element.Data(i)))
-	}
-
-	return data
-}
-
-func DeserializeElements(readElement readElementFunc, elementsNum int) []taskElementType {
-	elements := make([]taskElementType, 0, elementsNum)
-
-	for i := 0; i < elementsNum; i++ {
-		var element api_tasks.Element
-
-		readElement(&element, i)
-
-		switch element.Type() {
-		case api_tasks.ElementsTypesTEXT:
-			elements = append(elements, deserializeTextElement(element))
-		case api_tasks.ElementsTypesCHOICE:
-			elements = append(elements, deserializeChoiceElement(element))
-		case api_tasks.ElementsTypesMULTI_CHOICE:
-			elements = append(elements, deserializeMultiChoiceElement(element))
-		case api_tasks.ElementsTypesRELATIONS:
-			elements = append(elements, deserializeRelationsElement(element))
-		}
-	}
-
-	return elements
-}
-
-func DeserializeElementsFromBytes(data []byte) []taskElementType {
-	taskElements := api_tasks.GetRootAsTaskElements(data, 0)
-
-	return DeserializeElements(taskElements.Elements, taskElements.ElementsLength())
-}
-
-func deserializeTextElement(element api_tasks.Element) textElementType {
-	textElement := api_tasks.GetRootAsTextElement(getElementBytes(element), 0)
-
-	return textElementType{
+	return taskElementType{
 		Hash: string(element.Hash()),
-		Body: string(textElement.Body()),
+		Type: api_tasks.ElementsTypesTEXT,
+		textElementData: textElementType{
+			Body: string(textElement.Body()),
+		},
 	}
 }
 
-func deserializeChoiceElement(element api_tasks.Element) choiceElementType {
-	choiceElement := api_tasks.GetRootAsChoiceElement(getElementBytes(element), 0)
+func deserializeChoiceElement(element api_tasks.Element) taskElementType {
+	choiceElement := element.ChoiceElementData(nil)
 
 	items := make([]choiceElementItemType, 0, choiceElement.ItemsLength())
 
@@ -120,19 +89,44 @@ func deserializeChoiceElement(element api_tasks.Element) choiceElementType {
 		})
 	}
 
-	return choiceElementType{
-		Hash:        string(element.Hash()),
-		Description: string(choiceElement.Description()),
-		Items:       items,
+	return taskElementType{
+		Hash: string(element.Hash()),
+		Type: api_tasks.ElementsTypesCHOICE,
+		choiceElementData: choiceElementType{
+			Description: string(choiceElement.Description()),
+			Items:       items,
+		},
 	}
 }
 
-func deserializeMultiChoiceElement(element api_tasks.Element) multiChoiceElementType {
-	return deserializeChoiceElement(element)
+func deserializeMultiChoiceElement(element api_tasks.Element) taskElementType {
+	choiceElement := element.MultiChoiceElementData(nil)
+
+	items := make([]choiceElementItemType, 0, choiceElement.ItemsLength())
+
+	for i := 0; i < choiceElement.ItemsLength(); i++ {
+		var item api_tasks.ChoiceElementItem
+		choiceElement.Items(&item, i)
+
+		items = append(items, choiceElementItemType{
+			Hash:     string(item.Hash()),
+			Text:     string(item.Text()),
+			Selected: item.Selected(),
+		})
+	}
+
+	return taskElementType{
+		Hash: string(element.Hash()),
+		Type: api_tasks.ElementsTypesMULTI_CHOICE,
+		multiChoiceElementData: multiChoiceElementType{
+			Description: string(choiceElement.Description()),
+			Items:       items,
+		},
+	}
 }
 
-func deserializeRelationsElement(element api_tasks.Element) relationsElementType {
-	relationsElement := api_tasks.GetRootAsRelationsElement(getElementBytes(element), 0)
+func deserializeRelationsElement(element api_tasks.Element) taskElementType {
+	relationsElement := element.RelationsElementData(nil)
 
 	leftItems := make([]RelationItemType, 0, relationsElement.LeftItemsLength())
 	rightItems := make([]RelationItemType, 0, relationsElement.RightItemsLength())
@@ -168,43 +162,71 @@ func deserializeRelationsElement(element api_tasks.Element) relationsElementType
 		})
 	}
 
-	return relationsElementType{
-		Hash:       string(element.Hash()),
-		LeftItems:  leftItems,
-		RightItems: rightItems,
-		Relations:  relations,
+	return taskElementType{
+		Hash: string(element.Hash()),
+		Type: api_tasks.ElementsTypesRELATIONS,
+		relationsElementData: relationsElementType{
+
+			Description: string(relationsElement.Description()),
+			LeftItems:   leftItems,
+			RightItems:  rightItems,
+			Relations:   relations,
+		},
 	}
 }
 
-func DeserializeTask(data []byte) taskType {
+func DeserializeElements(readElement readElementFunc, elementsNum int) []taskElementType {
+	elements := make([]taskElementType, 0, elementsNum)
+
+	for i := 0; i < elementsNum; i++ {
+		var element api_tasks.Element
+
+		readElement(&element, i)
+
+		switch element.Type() {
+		case api_tasks.ElementsTypesTEXT:
+			elements = append(elements, deserializeTextElement(element))
+		case api_tasks.ElementsTypesCHOICE:
+			elements = append(elements, deserializeChoiceElement(element))
+		case api_tasks.ElementsTypesMULTI_CHOICE:
+			elements = append(elements, deserializeMultiChoiceElement(element))
+		case api_tasks.ElementsTypesRELATIONS:
+			elements = append(elements, deserializeRelationsElement(element))
+		}
+	}
+
+	return elements
+}
+
+func DeserializeElementsFromBytes(data []byte) []taskElementType {
+	taskElements := api_tasks.GetRootAsTaskElements(data, 0)
+
+	return DeserializeElements(taskElements.Elements, taskElements.ElementsLength())
+}
+
+func DeserializeTask(data []byte) TaskType {
 	task := api_tasks.GetRootAsTask(data, 0)
 
 	elements := DeserializeElements(task.Elements, task.ElementsLength())
 
-	return taskType{
+	return TaskType{
 		Id:          int(task.Id()),
 		Name:        string(task.Name()),
 		Description: string(task.Description()),
+		IsPrivate:   task.IsPrivate(),
 		Elements:    elements,
 	}
 }
 
-func serializeTextElement(element textElementType) []byte {
-	b := &flatbuffers.Builder{}
-
+func serializeTextElement(b *flatbuffers.Builder, element textElementType) flatbuffers.UOffsetT {
 	body := b.CreateString(element.Body)
 
 	api_tasks.TextElementStart(b)
 	api_tasks.TextElementAddBody(b, body)
-	offset := api_tasks.TextElementEnd(b)
-	b.Finish(offset)
-
-	return b.FinishedBytes()
+	return api_tasks.TextElementEnd(b)
 }
 
-func serializeChoiceElement(element choiceElementType) []byte {
-	b := &flatbuffers.Builder{}
-
+func serializeChoiceElement(b *flatbuffers.Builder, element choiceElementType) flatbuffers.UOffsetT {
 	description := b.CreateString(element.Description)
 
 	offsets := make([]flatbuffers.UOffsetT, 0, len(element.Items))
@@ -226,18 +248,15 @@ func serializeChoiceElement(element choiceElementType) []byte {
 	api_tasks.ChoiceElementStart(b)
 	api_tasks.ChoiceElementAddDescription(b, description)
 	api_tasks.ChoiceElementAddItems(b, offset)
-	offset = api_tasks.ChoiceElementEnd(b)
-	b.Finish(offset)
-
-	return b.FinishedBytes()
+	return api_tasks.ChoiceElementEnd(b)
 }
 
-func serializeMultiChoiceElement(element choiceElementType) []byte {
-	return serializeChoiceElement(element)
+func serializeMultiChoiceElement(b *flatbuffers.Builder, element choiceElementType) flatbuffers.UOffsetT {
+	return serializeChoiceElement(b, element)
 }
 
-func serializeRelationsElement(element relationsElementType) []byte {
-	b := &flatbuffers.Builder{}
+func serializeRelationsElement(b *flatbuffers.Builder, element relationsElementType) flatbuffers.UOffsetT {
+	description := b.CreateString(element.Description)
 
 	leftItemsOffsets := make([]flatbuffers.UOffsetT, 0, len(element.LeftItems))
 	rightItemsOffsets := make([]flatbuffers.UOffsetT, 0, len(element.RightItems))
@@ -281,13 +300,46 @@ func serializeRelationsElement(element relationsElementType) []byte {
 	relations := b.CreateVectorOfTables(relationsOffsets)
 
 	api_tasks.RelationsElementStart(b)
+	api_tasks.RelationsElementAddDescription(b, description)
 	api_tasks.RelationsElementAddLeftItems(b, leftItems)
 	api_tasks.RelationsElementAddRightItems(b, rightItems)
 	api_tasks.RelationsElementAddRelations(b, relations)
-	offset := api_tasks.RelationsElementEnd(b)
-	b.Finish(offset)
+	return api_tasks.RelationsElementEnd(b)
+}
 
-	return b.FinishedBytes()
+func serializeElement(b *flatbuffers.Builder, element *taskElementType) flatbuffers.UOffsetT {
+	hash := b.CreateString(element.Hash)
+
+	var addElementData func()
+
+	switch element.Type {
+	case api_tasks.ElementsTypesTEXT:
+		textElement := serializeTextElement(b, element.textElementData)
+		addElementData = func() {
+			api_tasks.ElementAddTextElementData(b, textElement)
+		}
+	case api_tasks.ElementsTypesCHOICE:
+		choiceElement := serializeChoiceElement(b, element.choiceElementData)
+		addElementData = func() {
+			api_tasks.ElementAddChoiceElementData(b, choiceElement)
+		}
+	case api_tasks.ElementsTypesMULTI_CHOICE:
+		multiChoiceElement := serializeMultiChoiceElement(b, element.multiChoiceElementData)
+		addElementData = func() {
+			api_tasks.ElementAddMultiChoiceElementData(b, multiChoiceElement)
+		}
+	case api_tasks.ElementsTypesRELATIONS:
+		relationsElement := serializeRelationsElement(b, element.relationsElementData)
+		addElementData = func() {
+			api_tasks.ElementAddRelationsElementData(b, relationsElement)
+		}
+	}
+
+	api_tasks.ElementStart(b)
+	api_tasks.ElementAddHash(b, hash)
+	api_tasks.ElementAddType(b, element.Type)
+	addElementData()
+	return api_tasks.ElementEnd(b)
 }
 
 func SerializeElements(elements []taskElementType) []byte {
@@ -296,22 +348,7 @@ func SerializeElements(elements []taskElementType) []byte {
 	offsets := make([]flatbuffers.UOffsetT, 0, len(elements))
 
 	for _, el := range elements {
-		var data []byte
-
-		switch element := el.(type) {
-		case textElementType:
-			data = serializeTextElement(element)
-		case choiceElementType:
-			data = serializeChoiceElement(element)
-		case multiChoiceElementType:
-			data = serializeMultiChoiceElement(element)
-		case relationsElementType:
-			data = serializeRelationsElement(element)
-		}
-
-		offset := b.CreateByteVector(data)
-
-		offsets = append(offsets, offset)
+		offsets = append(offsets, serializeElement(b, &el))
 	}
 
 	offset := b.CreateVectorOfTables(offsets)
@@ -324,46 +361,14 @@ func SerializeElements(elements []taskElementType) []byte {
 	return b.FinishedBytes()
 }
 
-func SerializeTask(task taskType) []byte {
-	b := &flatbuffers.Builder{}
-
+func SerializeTask(b *flatbuffers.Builder, task TaskType) flatbuffers.UOffsetT {
 	name := b.CreateString(task.Name)
 	description := b.CreateString(task.Description)
 
 	offsets := make([]flatbuffers.UOffsetT, 0, len(task.Elements))
 
 	for _, el := range task.Elements {
-		var hash flatbuffers.UOffsetT
-		var elType api_tasks.ElementsTypes
-		var data []byte
-
-		switch element := el.(type) {
-		case textElementType:
-			hash = b.CreateString(element.Hash)
-			elType = api_tasks.ElementsTypesTEXT
-			data = serializeTextElement(element)
-		case choiceElementType:
-			hash = b.CreateString(element.Hash)
-			elType = api_tasks.ElementsTypesCHOICE
-			data = serializeChoiceElement(element)
-		case multiChoiceElementType:
-			hash = b.CreateString(element.Hash)
-			elType = api_tasks.ElementsTypesMULTI_CHOICE
-			data = serializeMultiChoiceElement(element)
-		case relationsElementType:
-			hash = b.CreateString(element.Hash)
-			elType = api_tasks.ElementsTypesRELATIONS
-			data = serializeRelationsElement(element)
-		}
-
-		offset := b.CreateByteVector(data)
-
-		api_tasks.ElementStart(b)
-		api_tasks.ElementAddHash(b, hash)
-		api_tasks.ElementAddType(b, elType)
-		api_tasks.ElementAddData(b, offset)
-		offset = api_tasks.ElementEnd(b)
-		offsets = append(offsets, offset)
+		offsets = append(offsets, serializeElement(b, &el))
 	}
 
 	offset := b.CreateVectorOfTables(offsets)
@@ -372,9 +377,8 @@ func SerializeTask(task taskType) []byte {
 	api_tasks.TaskAddId(b, uint32(task.Id))
 	api_tasks.TaskAddName(b, name)
 	api_tasks.TaskAddDescription(b, description)
+	api_tasks.TaskAddIsPrivate(b, task.IsPrivate)
 	api_tasks.TaskAddElements(b, offset)
-	offset = api_tasks.TaskEnd(b)
-	b.Finish(offset)
 
-	return b.FinishedBytes()
+	return api_tasks.TaskEnd(b)
 }

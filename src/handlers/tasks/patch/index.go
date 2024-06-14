@@ -48,6 +48,7 @@ func (h *tasksPatchHandler) Handle(data *api_tasks_patch.TasksPatchReq, ctx core
 		Fields: &core_database.UpdateTaskOptionsFields{
 			Name:        core_database.CreateField(string(data.Name())),
 			Description: core_database.CreateField(string(data.Description())),
+			IsPrivate:   core_database.CreateField(data.IsPrivate()),
 			Elements:    core_database.CreateField(core_resources.SerializeElements(elements)),
 		},
 	})

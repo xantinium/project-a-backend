@@ -45,6 +45,12 @@ func CreateColumnsQuery(fieldsMap any) string {
 					switch rv.Kind() {
 					case reflect.String:
 						v = fmt.Sprintf("'%s'", rv)
+					case reflect.Bool:
+						if rv.Bool() {
+							v = "TRUE"
+						} else {
+							v = "FALSE"
+						}
 					case reflect.Slice:
 						buf := []byte{}
 						buf = append(buf, `\x`...)
